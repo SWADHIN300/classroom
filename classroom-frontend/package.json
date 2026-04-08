@@ -85,9 +85,9 @@
     "tailwindcss": "^4.1.4"
   },
   "scripts": {
-    "dev": "refine dev",
-    "build": "tsc && refine build",
-    "start": "refine start",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "start": "vite preview",
     "refine": "refine"
   },
   "browserslist": {
