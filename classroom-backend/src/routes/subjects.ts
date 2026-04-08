@@ -1,4 +1,4 @@
-import { and, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, ilike, or, sql, type SQL } from "drizzle-orm";
 import express from "express";
 import { departments, subjects } from "../db/schema/app.js";
 import { db } from "../db/index.js";
@@ -8,25 +8,29 @@ const router = express.Router();
 router.get("/", async (req, res) => {
      try {
         const { search, department, page = 1 , limit = 10 } = req.query;
+        const searchTerm = typeof search === "string" ? search.trim() : "";
+        const departmentTerm = typeof department === "string" ? department.trim() : "";
 
-        const currentPage = Math.max(1, +page);
-        const limitPerPage = Math.max(1, +limit);
+        const currentPage = Math.max(1, parseInt(String(page), 10) || 1);
+        const limitPerPage = Math.min(Math.max(1, parseInt(String(limit), 10) || 10 ), 100);
         
         const offset = (currentPage - 1) *limitPerPage;
 
-        const filterCondition = [];
+        const filterCondition: SQL[] = [];
 
-        if(search) {
-            filterCondition.push(
-                or(
-                     ilike(subjects.name, `%${search}%`),
-                     ilike(subjects.code, `%${search}`)
-                )
-            )
+        if (searchTerm) {
+            const searchClause = or(
+                 ilike(subjects.name, `%${searchTerm}%`),
+                 ilike(subjects.code, `%${searchTerm}%`)
+            );
+
+            if (searchClause) {
+                filterCondition.push(searchClause);
+            }
         }
 
-        if(department) {
-            filterCondition.push(ilike(departments.name, `%${department}`));
+        if (departmentTerm) {
+            filterCondition.push(ilike(departments.name, `%${departmentTerm}%`));
         }
 
         const whereClause = filterCondition.length > 0 ? and(... filterCondition) : undefined;
@@ -37,7 +41,7 @@ router.get("/", async (req, res) => {
             .leftJoin(departments, eq(subjects.departmentId, departments.id))
             .where(whereClause);
         
-        const totalCount = countResult[0] ?.count ?? 0;
+        const totalCount = Number(countResult[0]?.count ?? 0);
 
         const subjectList = await db
               .select({
