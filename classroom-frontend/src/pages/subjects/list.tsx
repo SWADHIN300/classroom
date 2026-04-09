@@ -5,7 +5,7 @@ import { ListView } from '@/components/refine-ui/views/list-view'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { DEPARTMENT_OPTION } from '@/constants'
+import { DEPARTMENT_OPTIONS } from '@/constants'
 import { Subject } from '@/types'
 import type { CrudFilters } from '@refinedev/core'
 import { useTable } from '@refinedev/react-table'
@@ -42,7 +42,7 @@ const SubjectList = () => {
           filterFn: 'includesString'
         },{
           id:'department',
-          accessorKey: 'department',
+          accessorKey: 'department.name',
           size: 150,
           header: () => <p className='column-title'>Department</p>,
           cell: ({ getValue }) => <Badge 
@@ -103,11 +103,11 @@ const SubjectList = () => {
                        <SelectItem value='all'>
                            All Department
                        </SelectItem>
-                       {DEPARTMENT_OPTION.map(depart =>(
+                       {DEPARTMENT_OPTIONS.map(depart =>(
                         <SelectItem key={depart.value}
                             value={depart.value}>
-                                 {depart.Label}
-                            </SelectItem>
+                                 {depart.label}
+                        </SelectItem>
                        ))}
                      </SelectContent>
                   </Select>

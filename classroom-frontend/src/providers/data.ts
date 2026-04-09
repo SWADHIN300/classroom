@@ -1,28 +1,47 @@
-// import { createSimpleRestDataProvider } from "@refinedev/rest/simple-rest";
-// import { API_URL } from "./constants";
-// export const { dataProvider, kyInstance } = createSimpleRestDataProvider({
-//   apiURL: API_URL,
-// });
-
-import { BaseRecord, DataProvider,GetListParams, GetListResponse } from "@refinedev/core";
+import { BACKEND_BASE_URL } from "@/constants";
+import { ListResponse } from "@/types"
+import { createDataProvider, CreateDataProviderOptions } from "@refinedev/rest"
 
 
-export const dataProvider: DataProvider ={
-  getList: async <Tdata extends BaseRecord = BaseRecord>({ resource }:
-   GetListParams): Promise<GetListResponse<Tdata>> =>{
-    if(resource !== 'subjects') return { data: [] as Tdata[], total:0 };
+const options: CreateDataProviderOptions ={
+    getList: {
+      getEndpoint: ({ resource }) => resource,
 
-    return{
-       data: [],
-       total:0,
+      buildQueryParams: async ({ resource,pagination, filters}) => {
+         const page = pagination?.currentPage ?? 1;
+         const pageSize = pagination?.pageSize ?? 10;
+
+         const params: Record<string, string|number> = { page,limit: pageSize};
+
+         filters?.forEach((filter) => {
+            const field = 'field' in filter ? filter.field: '';
+            if (!('value' in filter) || filter.value == null || field === '') {
+                return;
+            }
+
+            const value = String(filter.value);
+
+            if(resource === 'subjects'){
+                 if(field === 'department') params.department = value;
+                 if(field === 'name' || field ==='code') params.search = value;
+            }
+         });
+         return params;
+      },
+
+      mapResponse: async (response) => {
+         const payload: ListResponse = await response.json();
+
+         return payload.data ?? [];
+      },
+
+      getTotalCount: async (response) =>{
+         const playload: ListResponse = await response.json();
+
+         return playload.pagination?.total ?? playload.data?.length ?? 0;
+      }
     }
-   },
-   
-
-   getOne: async () => { throw new Error('This function is not present in mock')}, 
-   create: async () => { throw new Error('This function is not present in mock')},
-   update: async () => { throw new Error('This function is not present in mock')},
-   deleteOne: async () => { throw new Error('This function is not present in mock')},
-
-   getApiUrl: ()=> '',
 }
+
+const  { dataProvider } = createDataProvider(BACKEND_BASE_URL, options);
+export { dataProvider  };
