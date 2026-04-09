@@ -30,13 +30,13 @@ const options: CreateDataProviderOptions ={
       },
 
       mapResponse: async (response) => {
-         const payload: ListResponse = await response.json();
+         const payload: ListResponse = await response.clone().json();
 
          return payload.data ?? [];
       },
 
       getTotalCount: async (response) =>{
-         const playload: ListResponse = await response.json();
+         const playload: ListResponse = await response.clone().json();
 
          return playload.pagination?.total ?? playload.data?.length ?? 0;
       }
