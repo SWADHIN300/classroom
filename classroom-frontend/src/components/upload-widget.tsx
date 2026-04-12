@@ -1,175 +1,152 @@
-import { useRef, useState, type ChangeEvent } from "react";
-import { toast } from "sonner";
-import { ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from "@/constants";
+import { Trash, UploadCloud } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "./ui/button";
+import { UploadWidgetProps, UploadWidgetValue } from "@/types";
 
-import { Button } from "@/components/ui/button";
-import {
-  ALLOWED_TYPES,
-  CLOUDINARY_CLOUD_NAME,
-  CLOUDINARY_UPLOAD_PRESET,
-  CLOUDINARY_UPLOAD_URL,
-  MAX_FILE_SIZE,
-} from "@/constants";
-import type { UploadWidgetProps } from "@/types";
+function UploadWidget({
+  value = null,
+  onChange,
+  disabled = false,
+}: UploadWidgetProps) {
+  const widgetRef = useRef<CloudinaryWidget | null>(null);
+  const onChangeRef = useRef(onChange);
 
-const fallbackUploadUrl = CLOUDINARY_CLOUD_NAME
-  ? `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`
-  : undefined;
+  const [preview, setPreview] = useState<UploadWidgetValue | null>(value);
+  const [deleteToken, setDeleteToken] = useState<string | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
 
-const uploadUrl = CLOUDINARY_UPLOAD_URL ?? fallbackUploadUrl;
+  // Always keep latest onChange
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
-type CloudinaryUploadResponse = {
-  secure_url?: string;
-  public_id?: string;
-  error?: {
-    message?: string;
+  // Sync external value → internal preview
+  useEffect(() => {
+    setPreview(value);
+    if (!value) {
+      setDeleteToken(null);
+    }
+  }, [value]);
+
+  // Initialize Cloudinary widget (client-side only)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const initializeWidget = () => {
+      if (!window.cloudinary || widgetRef.current) return false;
+
+      widgetRef.current = window.cloudinary.createUploadWidget(
+        {
+          cloudName: CLOUDINARY_CLOUD_NAME,
+          uploadPreset: CLOUDINARY_UPLOAD_PRESET,
+          multiple: false,
+          folder: "uploads",
+          maxFileSize: 5_000_000,
+          clientAllowedFormats: ["png", "jpg", "jpeg"],
+        },
+        (error, result) => {
+          if (!error && result.event === "success") {
+            const payload: UploadWidgetValue = {
+              url: result.info.secure_url,
+              publicId: result.info.public_id,
+            };
+
+            setPreview(payload);
+            setDeleteToken(result.info.delete_token ?? null);
+            onChangeRef.current?.(payload);
+          }
+        }
+      );
+
+      return true;
+    };
+
+    if (initializeWidget()) return;
+
+    const intervalId = window.setInterval(() => {
+      if (initializeWidget()) {
+        window.clearInterval(intervalId);
+      }
+    }, 500);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const openWidget = () => {
+    if (!disabled) {
+      widgetRef.current?.open();
+    }
   };
-};
 
-const UploadWidget = ({ value, onChange, disabled = false }: UploadWidgetProps) => {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const removeFromCloudinary = async () => {
+    if (!preview) return;
 
-  const handleSelectClick = () => {
-    if (disabled || isUploading) {
-      return;
-    }
-
-    inputRef.current?.click();
-  };
-
-  const resetInput = () => {
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
-  };
-
-  const validateFile = (file: File) => {
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      toast.error("Please upload a PNG, JPG, JPEG, or WEBP image.");
-      return false;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      toast.error("Image size must be 3MB or smaller.");
-      return false;
-    }
-
-    return true;
-  };
-
-  const uploadFile = async (file: File) => {
-    if (!uploadUrl || !CLOUDINARY_UPLOAD_PRESET) {
-      toast.error("Cloudinary upload is not configured.");
-      resetInput();
-      return;
-    }
-
-    if (!validateFile(file)) {
-      resetInput();
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
-    setIsUploading(true);
+    setIsRemoving(true);
 
     try {
-      const response = await fetch(uploadUrl, {
-        method: "POST",
-        body: formData,
-      });
+      if (deleteToken) {
+        const params = new URLSearchParams();
+        params.append("token", deleteToken);
 
-      const data = (await response.json()) as CloudinaryUploadResponse;
-
-      if (!response.ok || !data.secure_url || !data.public_id) {
-        throw new Error(data.error?.message ?? "Upload failed.");
+        await fetch(
+          `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/delete_by_token`,
+          {
+            method: "POST",
+            body: params,
+          }
+        );
       }
-
-      onChange?.({
-        url: data.secure_url,
-        publicId: data.public_id,
-      });
-
-      toast.success("Image uploaded successfully.");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to upload image.";
-      toast.error(message);
+      console.error("Failed to remove image from Cloudinary", error);
     } finally {
-      setIsUploading(false);
-      resetInput();
+      setPreview(null);
+      setDeleteToken(null);
+      onChangeRef.current?.(null);
+      setIsRemoving(false);
     }
-  };
-
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    await uploadFile(file);
-  };
-
-  const handleRemove = () => {
-    if (disabled || isUploading) {
-      return;
-    }
-
-    onChange?.(null);
-    resetInput();
   };
 
   return (
-    <div className="space-y-3">
-      <input
-        ref={inputRef}
-        type="file"
-        accept={ALLOWED_TYPES.join(",")}
-        className="hidden"
-        onChange={handleFileChange}
-        disabled={disabled || isUploading}
-      />
-
-      {value?.url ? (
+    <div className="space-y-2">
+      {preview ? (
         <div className="upload-preview">
-          <img src={value.url} alt="Uploaded banner preview" className="max-h-64" />
+          <img src={preview.url} alt="Uploaded file" />
+
           <Button
             type="button"
-            variant="destructive"
             size="icon"
-            onClick={handleRemove}
-            disabled={disabled || isUploading}
+            variant="destructive"
+            onClick={removeFromCloudinary}
+            disabled={isRemoving || disabled}
           >
-            <Trash2 className="size-4" />
+            <Trash className="size-4" />
           </Button>
         </div>
-      ) : null}
-
-      <button
-        type="button"
-        className="upload-dropzone"
-        onClick={handleSelectClick}
-        disabled={disabled || isUploading}
-      >
-        <div className="upload-prompt">
-          {isUploading ? (
-            <Loader2 className="icon animate-spin" />
-          ) : (
-            <ImagePlus className="icon" />
-          )}
-
-          <div>
-            <p>{isUploading ? "Uploading image..." : "Click to upload banner image"}</p>
-            <p>PNG, JPG, JPEG, or WEBP up to 3MB</p>
+      ) : (
+        <div
+          className="upload-dropzone"
+          role="button"
+          tabIndex={0}
+          onClick={openWidget}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openWidget();
+            }
+          }}
+        >
+          <div className="upload-prompt">
+            <UploadCloud className="icon" />
+            <div>
+              <p>Click to upload photo</p>
+              <p>PNG, JPG up to 5MB</p>
+            </div>
           </div>
         </div>
-      </button>
+      )}
     </div>
   );
-};
+}
 
 export default UploadWidget;

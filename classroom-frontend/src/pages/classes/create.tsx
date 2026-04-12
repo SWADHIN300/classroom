@@ -28,7 +28,9 @@ import { useBack, useList } from "@refinedev/core";
 import { Loader2 } from "lucide-react";
 import { classSchema } from "@/lib/schema";
 import UploadWidget from "@/components/upload-widget";
-import { Subject, User } from "@/types";
+import { Subject } from "@/types";
+import { teachers as fallbackTeachers } from "@/constants";
+import { toast } from "sonner";
 import z from "zod";
 
 const ClassesCreate = () => {
@@ -58,6 +60,10 @@ const ClassesCreate = () => {
     try {
       await onFinish(values);
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to create class.";
+
+      toast.error(message);
       console.error("Error creating class:", error);
     }
   };
@@ -70,23 +76,7 @@ const ClassesCreate = () => {
     },
   });
 
-  // Fetch teachers list
-  const { query: teachersQuery } = useList<User>({
-    resource: "users",
-    filters: [
-      {
-        field: "role",
-        operator: "eq",
-        value: "teacher",
-      },
-    ],
-    pagination: {
-      pageSize: 100,
-    },
-  });
-
-  const teachers = teachersQuery.data?.data || [];
-  const teachersLoading = teachersQuery.isLoading;
+  const teachers = fallbackTeachers;
 
   const subjects = subjectsQuery.data?.data || [];
   const subjectsLoading = subjectsQuery.isLoading;
@@ -228,7 +218,6 @@ const ClassesCreate = () => {
                         <Select
                           onValueChange={field.onChange}
                           value={field.value?.toString()}
-                          disabled={teachersLoading}
                         >
                           <FormControl>
                             <SelectTrigger className="w-full">
