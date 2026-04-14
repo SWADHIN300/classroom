@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import router from "./routes/subjects.js";
 import cors from "cors";
+import securitymiddleware from "./middleware/security.js";
 
 const app = express();
 const port = 8000;
@@ -15,6 +16,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(securitymiddleware);
 app.use("/api/subjects", router);
 
 app.get("/health", (_request, response) => {
