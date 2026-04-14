@@ -69,9 +69,10 @@ function App() {
                 </Route>
 
                 <Route path="classes">
-                   <Route index element={<ClassesList />} />
-                   <Route path='create' element={<ClassesCreate />} />
-                </Route>
+                    <Route index element={<ClassesList />} />
+                    <Route path="create" element={<ClassesCreate />} />
+                    {/* <Route path="show/:id" element={<ClassesShow />} /> */}
+                  </Route>
                </Route>
               </Routes>
               <Toaster />
